@@ -1,0 +1,89 @@
+---
+title: "Computation"
+author: "Rob Weber"
+date: "July 24, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Library}
+library(tidyverse)
+library(ggplot2)
+library(baseballr)
+```
+
+# Data
+The df names are as follows: 
+
+# Cleaning
+Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. Then, since this is WAR for position players, we need to eliminate any pitchers from the data set but keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
+```{r Cleaning}
+defense[ , c("Name", "Team", "Position", "Inn")] -> defense
+defense <- defense %>%
+  mutate(Team = ifelse(Team == "ARI", "Diamondbacks", 
+                    ifelse(Team == "ATL", "Braves", 
+                    ifelse(Team == "BAL", "Orioles", 
+                    ifelse(Team == "BOS", "Red Sox", 
+                    ifelse(Team == "CHC", "Cubs", 
+                    ifelse(Team == "CIN", "Reds", 
+                    ifelse(Team == "CLE", "Indians", 
+                    ifelse(Team == "COL", "Rockies", 
+                    ifelse(Team == "CHW", "White Sox", 
+                    ifelse(Team == "DET", "Tigers", 
+                    ifelse(Team == "HOU", "Astros", 
+                    ifelse(Team == "KCR", "Royals", 
+                    ifelse(Team == "LAA", "Angels", 
+                    ifelse(Team == "LAD", "Dodgers", 
+                    ifelse(Team == "MIA", "Marlins", 
+                    ifelse(Team == "MIL", "Brewers", 
+                    ifelse(Team == "MIN", "Twins", 
+                    ifelse(Team == "NYM", "Mets", 
+                    ifelse(Team == "NYY", "Yankees", 
+                    ifelse(Team == "OAK", "Athletics", 
+                    ifelse(Team == "PHI", "Phillies", 
+                    ifelse(Team == "PIT", "Pirates", 
+                    ifelse(Team == "SDP", "Padres", 
+                    ifelse(Team == "SEA", "Mariners", 
+                    ifelse(Team == "SFG", "Giants", 
+                    ifelse(Team == "STL", "Cardinals", 
+                    ifelse(Team == "TBR", "Rays", 
+                    ifelse(Team == "TEX", "Rangers", 
+                    ifelse(Team == "TOR", "Blue Jays", 
+                    ifelse(Team == "WSN", "Nationals", 
+                           "null")))))))))))))))))))))))))))))))
+as.character(wp.df$Name) -> wp.df$Name; as.character(defense$Name) -> defense$Name
+defense <- defense %>%
+  group_by(Name, Team) %>%
+  summarise(Position = Position[Inn == max(Inn)], 
+            Inn = sum(Inn))
+left_join(wp.df, defense, by = c("Name", "Team")) -> wp.df
+
+wp.df[which(wp.df$Position != "P"), ] -> full.df
+
+str_replace_all(full.df$Name, "Nick Delmonico", "Nicky Delmonico") -> full.df$Name
+str_replace_all(full.df$Name, "Nicholas Castellanos", "Nick Castellanos") -> full.df$Name
+str_replace_all(full.df$Name, "Eric Young", "Eric Young Jr.") -> full.df$Name
+str_replace_all(full.df$Name, "Raffy Lopez", "Rafael Lopez") -> full.df$Name
+str_replace_all(full.df$Name, "Yolmer Sanchez", "Carlos Sanchez") -> full.df$Name
+str_replace_all(full.df$Name, "Rickie Weeks Jr.", "Rickie Weeks") -> full.df$Name
+str_replace_all(full.df$Name, "Zack Granite", "Zach Granite") -> full.df$Name
+str_replace_all(full.df$Name, "Hyun Soo Kim", "Hyun-soo Kim") -> full.df$Name
+str_replace_all(full.df$Name, "Rey Fuentes", "Reymond Fuentes") -> full.df$Name
+str_replace_all(full.df$Name, "Vince Velasquez", "Vincent Velasquez") -> full.df$Name
+str_replace_all(full.df$Name, "Cam Perkins", "Cameron Perkins") -> full.df$Name
+str_replace_all(full.df$Name, "Adalberto Mondesi", "Raul Mondesi") -> full.df$Name
+str_replace_all(full.df$Name, "Luke Sims", "Lucas Sims") -> full.df$Name
+str_replace_all(full.df$Name, "Rubby de la Rosa", "Rubby De La Rosa") -> full.df$Name
+str_replace_all(full.df$Name, "AJ Ramos", "A.J. Ramos") -> full.df$Name
+str_replace_all(full.df$Name, "T.J. House", "TJ House") -> full.df$Name
+str_replace_all(full.df$Name, "Felipe Vasquez", "Felipe Rivero") -> full.df$Name
+str_replace_all(full.df$Name, "Dan Winkler", "Daniel Winkler") -> full.df$Name
+str_replace_all(full.df$Name, "Jakob Junis", "Jake Junis") -> full.df$Name
+str_replace_all(full.df$Name, "Jake Faria", "Jacob Faria") -> full.df$Name
+str_replace_all(full.df$Name, "Matt Strahm", "Matthew Strahm") -> full.df$Name
+str_replace_all(full.df$Name, "Lance McCullers Jr.", "Lance McCullers") -> full.df$Name
+id[-c(which(id$mlb_id == 446345)), ] -> id
+```
