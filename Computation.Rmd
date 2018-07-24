@@ -21,7 +21,8 @@ The in-file data-set names are as follows: "wp.df" is the full (with pitchers) f
 # Cleaning
 Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. That is what the "defense" data is used for. Then, since this is WAR for position players, fangraphs.com eliminates any pitchers from the data set in their calculations, but I keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
 ```{r Cleaning}
-# first, this narrows down "defense" to just the player name, team, position, and innings played at said position (it is needed for the positional adjustment later)
+# first, this narrows down "defense" to just the player name, team, position, 
+## and innings played at said position (it is needed for the positional adjustment later)
 defense[ , c("Name", "Team", "Position", "Inn")] -> defense 
 # this next step switches the team abbreviations in "defense" to the team names like in "wp.df"
 defense <- defense %>%
@@ -57,7 +58,10 @@ defense <- defense %>%
                     ifelse(Team == "WSN", "Nationals", 
                            "null")))))))))))))))))))))))))))))))
 as.character(wp.df$Name) -> wp.df$Name; as.character(defense$Name) -> defense$Name # just makes sure the name columns are treated as characters
-# this is to solve a headache produced by the fact that a player is in "defense" with data from every time they played a different position. What fangraphs does in terms of the positional adjustment for this is not stated. So, I just take the position they played the most innings and total the number of innings played at all positions.
+# this is to solve a headache produced by the fact that a player is in "defense" 
+## with data from every time they played a different position. What fangraphs does in terms of the 
+## positional adjustment for this is not stated. So, I just take the position they played the most innings and 
+## total the number of innings played at all positions.
 defense <- defense %>%
   group_by(Name, Team) %>%
   summarise(Position = Position[Inn == max(Inn)], 
@@ -89,5 +93,49 @@ str_replace_all(full.df$Name, "Jake Faria", "Jacob Faria") -> full.df$Name
 str_replace_all(full.df$Name, "Matt Strahm", "Matthew Strahm") -> full.df$Name
 str_replace_all(full.df$Name, "Lance McCullers Jr.", "Lance McCullers") -> full.df$Name
 id[-c(which(id$mlb_id == 446345)), ] -> id
+```
+
+# Batting Runs
+- $Bat = wRAA + (lgR/PA - (PF*lgR/PA))*PA + (lgR/PA - (AL or NL non-pitcher wRC/PA))*PA$
+- $wRAA = ((wOBA - lgwOBA)/wOBA Scale) * PA$
+- $wOBA = (weight*uBB + weight*HBP + weight*1B + weight*2B + weight*3B + weight*HR) / (AB + uBB + SF + HBP)$
+```{r Batting Runs}
+# wOBA first
+# This uses baseballr functions to get the linear weights and then stores it
+run_expectancy_code(sc.data) -> weights
+linear_weights_savant(weights) -> weights
+
+# want to rename the fangraphs wOBA so it can be differentiated later
+full.df <- full.df %>%
+  rename(wOBA_fg = wOBA) %>%
+  mutate(uBB = BB - IBB) # get unintentional walks too
+# this gets wOBA not scaled to OBP
+(((weights$linear_weights_above_outs[weights$events == "walk"] * full.df$uBB) +
+ (weights$linear_weights_above_outs[weights$events == "hit_by_pitch"] * full.df$HBP) +
+ (weights$linear_weights_above_outs[weights$events == "single"] * full.df$X1B) +
+ (weights$linear_weights_above_outs[weights$events == "double"] * full.df$X2B) +
+ (weights$linear_weights_above_outs[weights$events == "triple"] * full.df$X3B) +
+ (weights$linear_weights_above_outs[weights$events == "home_run"] * full.df$HR)) 
+  / (full.df$AB + full.df$uBB + full.df$SF + full.df$HBP)) -> full.df$wOBA_unscaled 
+
+# now to get the weights scaled to OBP
+# need the mean of both OBP and unscaled wOBA
+mean(full.df$OBP, na.rm = T) -> obp_mean 
+mean(full.df$wOBA_unscaled, na.rm = T) -> woba_unscaled_mean 
+# this gets the wOBA scale
+obp_mean / woba_unscaled_mean -> woba_scale
+
+# gets the scaled weights
+weights$linear_weights_above_outs * woba_scale -> weights$linear_weights_scaled
+
+# get scaled wOBA
+(((weights$linear_weights_scaled[weights$events == "walk"] * full.df$uBB) +
+ (weights$linear_weights_scaled[weights$events == "hit_by_pitch"] * full.df$HBP) +
+ (weights$linear_weights_scaled[weights$events == "single"] * full.df$X1B) +
+ (weights$linear_weights_scaled[weights$events == "double"] * full.df$X2B) +
+ (weights$linear_weights_scaled[weights$events == "triple"] * full.df$X3B) +
+ (weights$linear_weights_scaled[weights$events == "home_run"] * full.df$HR)) / (full.df$AB + full.df$uBB + full.df$SF + full.df$HBP))-> full.df$wOBA_x
+
+# wRAA next
 ```
 
