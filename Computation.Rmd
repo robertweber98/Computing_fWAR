@@ -96,9 +96,9 @@ id[-c(which(id$mlb_id == 446345)), ] -> id
 ```
 
 # Batting Runs
-- $Bat = wRAA + (lgR/PA - (PF*lgR/PA))*PA + (lgR/PA - (AL or NL non-pitcher wRC/PA))*PA$
-- $wRAA = ((wOBA - lgwOBA)/wOBA Scale) * PA$
-- $wOBA = (weight*uBB + weight*HBP + weight*1B + weight*2B + weight*3B + weight*HR) / (AB + uBB + SF + HBP)$
+$Bat = wRAA + (lgR/PA - (PF*lgR/PA))*PA + (lgR/PA - (AL or NL non-pitcher wRC/PA))*PA$
+$wRAA = ((wOBA - lgwOBA)/wOBA Scale) * PA$
+$wOBA = (weight*uBB + weight*HBP + weight*1B + weight*2B + weight*3B + weight*HR) / (AB + uBB + SF + HBP)$
 ```{r Batting Runs}
 # wOBA first
 # This uses baseballr functions to get the linear weights and then stores it
@@ -134,8 +134,13 @@ weights$linear_weights_above_outs * woba_scale -> weights$linear_weights_scaled
  (weights$linear_weights_scaled[weights$events == "single"] * full.df$X1B) +
  (weights$linear_weights_scaled[weights$events == "double"] * full.df$X2B) +
  (weights$linear_weights_scaled[weights$events == "triple"] * full.df$X3B) +
- (weights$linear_weights_scaled[weights$events == "home_run"] * full.df$HR)) / (full.df$AB + full.df$uBB + full.df$SF + full.df$HBP))-> full.df$wOBA_x
+ (weights$linear_weights_scaled[weights$events == "home_run"] * full.df$HR)) 
+  / (full.df$AB + full.df$uBB + full.df$SF + full.df$HBP)) -> full.df$wOBA_x
 
 # wRAA next
+((full.df$wOBA_x - mean(full.df$wOBA_x)) / woba_scale) * full.df$PA  -> full.df$wRAA_x
+
+# now batting runs
+
 ```
 
