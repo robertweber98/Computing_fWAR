@@ -16,7 +16,7 @@ library(baseballr)
 ```
 
 # Data
-The in-file data-set names are as follows: "wp.df" is the full (with pitchers) fangraphs.com batting data set, "sc.data" is the 2017 statcast data, "team_stats" is the 2017 team data, "id" is the mlb id data set, and "defense" is the fangraphs.com data set with the fielding data.
+The in-file data-set names are as follows: "wp.df" is the full (with pitchers) fangraphs.com batting data set, "sc.data" is the 2017 statcast data, "team_stats" is the 2017 team data, "id" is the mlb id data set, "defense" is the fangraphs.com data set with the fielding data, and "pf" is the data set with the fangraphs.com basic park factors by team.
 
 # Cleaning
 Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. That is what the "defense" data is used for. Then, since this is WAR for position players, fangraphs.com eliminates any pitchers from the data set in their calculations, but I keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
@@ -96,9 +96,9 @@ id[-c(which(id$mlb_id == 446345)), ] -> id
 ```
 
 # Batting Runs
-$Bat = wRAA + (lgR/PA - (PF*lgR/PA))*PA + (lgR/PA - (AL or NL non-pitcher wRC/PA))*PA$
-$wRAA = ((wOBA - lgwOBA)/wOBA Scale) * PA$
-$wOBA = (weight*uBB + weight*HBP + weight*1B + weight*2B + weight*3B + weight*HR) / (AB + uBB + SF + HBP)$
+- Bat = wRAA + (lgR/PA - (PF*lgR/PA))*PA + (lgR/PA - (AL or NL non-pitcher wRC/PA))*PA
+- wRAA = ((wOBA - lgwOBA)/wOBA Scale) * PA
+- wOBA = (weight*uBB + weight*HBP + weight*1B + weight*2B + weight*3B + weight*HR) / (AB + uBB + SF + HBP)
 ```{r Batting Runs}
 # wOBA first
 # This uses baseballr functions to get the linear weights and then stores it
@@ -141,6 +141,29 @@ weights$linear_weights_above_outs * woba_scale -> weights$linear_weights_scaled
 ((full.df$wOBA_x - mean(full.df$wOBA_x)) / woba_scale) * full.df$PA  -> full.df$wRAA_x
 
 # now batting runs
-
+# league runs per plate appearance
+lgR_PA <- sum(full.df$R) / sum(full.df$PA)
+# AL or NL non-pitcher wRC/PA: wRC = (((wOBA-League wOBA)/wOBA Scale)+(League R/PA))*PA
+# need the league (AL or NL) for each player first
+ifelse(full.df$Team %in% c("Yankees", "Red Sox", "Rays", "Orioles", "Blue Jays", "White Sox", "Indians", "Royals", "Tigers", "Twins", 
+                           "Mariners", "Angels", "Rangers", "Athletics", "Astros"), 
+       "AL", "NL") -> full.df$League
+## AL first
+full.df_AL <- full.df[full.df$League == "AL", ]
+((((full.df_AL$wOBA_x - mean(full.df$wOBA_x)) / woba_scale) + (lgR_PA)) * full.df_AL$PA) -> wRC.PA_AL # get wRC for each AL player first
+sum(wRC.PA_AL, na.rm = T) / sum(full.df_AL$PA, na.rm = T) -> wRC.PA_AL # then get the AL wRC per PA
+## then the same for the NL
+full.df_NL <- full.df[full.df$League == "NL", ]
+((((full.df_NL$wOBA_x - mean(full.df$wOBA_x)) / woba_scale) + (lgR_PA)) * full.df_NL$PA) -> wRC.PA_NL
+sum(wRC.PA_NL, na.rm = T) / sum(full.df_NL$PA, na.rm = T) -> wRC.PA_NL
+# need the park factor in the data set too
+pf[ , c("Team", "Basic")] -> pf 
+c("Team", "PF") -> colnames(pf) # get everything named nice and neat
+pf$PF / 100 -> pf$PF # the WAR calculation uses the park factor divided by 100
+left_join(full.df, pf, by = "Team") -> full.df # gets the park factors into the full df
+# this is that actual batting runs calculation
+ifelse(full.df$League == "AL", 
+       (full.df$wRAA_x + ((lgR_PA - (full.df$PF * lgR_PA)) * full.df$PA) + ((lgR_PA - wRC.PA_AL) * full.df$PA)), 
+       (full.df$wRAA_x + ((lgR_PA - (full.df$PF * lgR_PA)) * full.df$PA) + ((lgR_PA - wRC.PA_NL) * full.df$PA))) -> full.df$Bat_x
 ```
 
