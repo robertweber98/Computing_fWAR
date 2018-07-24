@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+<<<<<<< HEAD
 ```{r Library}
 library(tidyverse)
 library(ggplot2)
@@ -87,3 +88,6 @@ str_replace_all(full.df$Name, "Matt Strahm", "Matthew Strahm") -> full.df$Name
 str_replace_all(full.df$Name, "Lance McCullers Jr.", "Lance McCullers") -> full.df$Name
 id[-c(which(id$mlb_id == 446345)), ] -> id
 ```
+=======
+
+>>>>>>> master
