@@ -168,4 +168,21 @@ ifelse(full.df$League == "AL",
 ```
 
 # Baserunning Runs
-- BR
+- BR = UBR + wSB + wGDP
+```{r}
+# wSB was the only one that I was able to calculate on my own (see README)
+# wSB = SB * runSB + CS * runCS - lgwSB * (1B + uBB + HBP)
+## runSB is always 0.2
+2 -> runSB
+## runCS = 2 x RunsPerOut + 0.075
+### runs per out = (season total runs) / (season total outs)
+runCS <- -(2 * (sum(team_stats$R) / (81 * 30 * 54)) + 0.075)
+## lgwSB = (SB * runSB + CS * runCS) / (1B + uBB + HBP)
+lgwSB <- ((sum(full.df$SB) * 0.2) + (sum(full.df$CS) * runCS)) / (sum(full.df$X1B) + sum(full.df$uBB) + sum(full.df$HBP))
+
+full.df$wSB_x <- (full.df$SB * runSB) + (full.df$CS * runCS) - (lgwSB * (full.df$X1B + full.df$uBB + full.df$HBP))
+
+# so BR runs is just adding up the pieces
+full.df$BR <- full.df$wSB_x + full.df$UBR + full.df$wGDP
+```
+
