@@ -167,3 +167,5 @@ ifelse(full.df$League == "AL",
        (full.df$wRAA_x + ((lgR_PA - (full.df$PF * lgR_PA)) * full.df$PA) + ((lgR_PA - wRC.PA_NL) * full.df$PA))) -> full.df$Bat_x
 ```
 
+# Baserunning Runs
+- BR
