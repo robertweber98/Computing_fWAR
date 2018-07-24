@@ -5,11 +5,10 @@ date: "July 24, 2018"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-<<<<<<< HEAD
 ```{r Library}
 library(tidyverse)
 library(ggplot2)
@@ -17,12 +16,14 @@ library(baseballr)
 ```
 
 # Data
-The df names are as follows: 
+The in-file data-set names are as follows: "wp.df" is the full (with pitchers) fangraphs.com batting data set, "sc.data" is the 2017 statcast data, "team_stats" is the 2017 team data, "id" is the mlb id data set, and "defense" is the fangraphs.com data set with the fielding data.
 
 # Cleaning
-Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. Then, since this is WAR for position players, we need to eliminate any pitchers from the data set but keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
+Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. That is what the "defense" data is used for. Then, since this is WAR for position players, fangraphs.com eliminates any pitchers from the data set in their calculations, but I keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
 ```{r Cleaning}
-defense[ , c("Name", "Team", "Position", "Inn")] -> defense
+# first, this narrows down "defense" to just the player name, team, position, and innings played at said position (it is needed for the positional adjustment later)
+defense[ , c("Name", "Team", "Position", "Inn")] -> defense 
+# this next step switches the team abbreviations in "defense" to the team names like in "wp.df"
 defense <- defense %>%
   mutate(Team = ifelse(Team == "ARI", "Diamondbacks", 
                     ifelse(Team == "ATL", "Braves", 
@@ -55,13 +56,14 @@ defense <- defense %>%
                     ifelse(Team == "TOR", "Blue Jays", 
                     ifelse(Team == "WSN", "Nationals", 
                            "null")))))))))))))))))))))))))))))))
-as.character(wp.df$Name) -> wp.df$Name; as.character(defense$Name) -> defense$Name
+as.character(wp.df$Name) -> wp.df$Name; as.character(defense$Name) -> defense$Name # just makes sure the name columns are treated as characters
+# this is to solve a headache produced by the fact that a player is in "defense" with data from every time they played a different position. What fangraphs does in terms of the positional adjustment for this is not stated. So, I just take the position they played the most innings and total the number of innings played at all positions.
 defense <- defense %>%
   group_by(Name, Team) %>%
   summarise(Position = Position[Inn == max(Inn)], 
             Inn = sum(Inn))
-left_join(wp.df, defense, by = c("Name", "Team")) -> wp.df
-
+left_join(wp.df, defense, by = c("Name", "Team")) -> wp.df # just gets the dfs together
+# this step gets rid of the pitchers from the data set and creates a new df calle "full.df" This is what will be used from now on
 wp.df[which(wp.df$Position != "P"), ] -> full.df
 
 str_replace_all(full.df$Name, "Nick Delmonico", "Nicky Delmonico") -> full.df$Name
@@ -88,6 +90,4 @@ str_replace_all(full.df$Name, "Matt Strahm", "Matthew Strahm") -> full.df$Name
 str_replace_all(full.df$Name, "Lance McCullers Jr.", "Lance McCullers") -> full.df$Name
 id[-c(which(id$mlb_id == 446345)), ] -> id
 ```
-=======
 
->>>>>>> master
