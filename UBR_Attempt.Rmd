@@ -1,0 +1,407 @@
+---
+title: "UBR Attempt"
+author: "Rob Weber"
+date: "July 25, 2018"
+output: html_document
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Calculations}
+sc.data -> df
+
+# get player names
+as.character(id$mlb_name) -> id$mlb_name # gets the names from factor to character
+
+data.frame("on_1B" = df$on_1b) -> first # gets the on-first-base column from the statcast data that has player-ids instead of names
+left_join(first, id, by = c("on_1B" = "mlb_id")) -> first # gets the player names matched with their ids
+first <- first %>%
+  rename("id" = "on_1B", "on_1B" = "mlb_name") # gets everything named right
+
+data.frame("on_2B" = df$on_2b) -> second # same process for on-second-base
+left_join(second, id, by = c("on_2B" = "mlb_id")) -> second
+second <- second %>%
+  rename("id" = "on_2B", "on_2B" = "mlb_name")
+
+data.frame("on_3B" = df$on_3b) -> third # and for on-third-base
+left_join(third, id, by = c("on_3B" = "mlb_id")) -> third
+third <- third %>%
+  rename("id" = "on_3B", "on_3B" = "mlb_name")
+
+data.frame("batter" = df$batter) -> batter # and also for the batter
+### side-note: there is a column that already has the batter names but they don't match up with the names
+###            from this data set that I'm using to get the player names, so this is just easier
+left_join(batter, id, by = c("batter" = "mlb_id")) -> batter
+batter <- batter %>%
+  rename("id" = "batter", "batter" = "mlb_name")
+
+# this just puts the new columns that have the player name in the same place as the id into the place of the original column
+first$on_1B -> df$on_1b; second$on_2B -> df$on_2b; third$on_3B -> df$on_3b; batter$batter -> df$batter 
+rm(first, second, third, batter) ## just get's them out of my environment
+
+# need to clean up the descriptions
+as.character(df$des) -> df$des # gets this column from factor to character
+
+# this is a function that gets all the people with abbreviated first names right in des because those get entered in wrong more often than not
+abbrv_names <- function(name_string, df) {
+  # gets all the rows with the player in question
+  which(df$batter == name_string | df$on_1b == name_string | df$on_2b == name_string | df$on_3b == name_string) -> name_rows 
+  str_sub(name_string, 1L, 2L) -> a # gets first initial
+  str_sub(name_string, 3L, 4L) -> b # gets second initial
+  str_sub(name_string, 6L, -1L) -> c # gets last name
+  # lets assume this is for A.J. Ellis and underscores are spaces
+  ## there are so many steps because issues have to be created then solved in order to get everything right
+  str_replace_all(df$des[name_rows], c, name_string) -> df$des[name_rows] # replaces Ellis with A.J._Ellis
+  str_replace_all(df$des[name_rows], str_c(a, " ", b, " ", a), a) -> df$des[name_rows] # replaces A._J._A. with A. to correct A._J._A.J._Ellis
+  str_replace_all(df$des[name_rows], str_c(a, " ", a), a) -> df$des[name_rows] # replaces A._A. with A. to correct A._A.J._Ellis
+  str_replace_all(df$des[name_rows], str_c(b, " ", a), a) -> df$des[name_rows] # replaces J._A. with A. to correct J._A.J._Ellis
+  return(df)
+}
+{
+  # list of names the function can fix
+  list_of_abbrv_names <- c("A.J. Cole", "A.J. Ellis", "A.J. Jimenez", "A.J. Pollock", "A.J. Schugel",  "C.J. Cron", "J.D. Davis",  
+                           "J.D. Martinez", "J.P. Crawford", "J.T. Realmuto", "R.A. Dickey", "T.J. Rivera") 
+  for(i in (list_of_abbrv_names)) { # loop to fix all the names in the list with the function
+    abbrv_names(i, df) -> df
+  }
+  ## these are all names that are different in the data set with the name ids
+  # Albert Almora Jr.
+  str_replace_all(df$des, "Albert Almora", "Albert Almora Jr.") -> df$des
+  # Carl Edwards Jr.
+  str_replace_all(df$des, "Carl Edwards", "Carl Edwards Jr.") -> df$des
+  # Carlos Sanchez
+  str_replace_all(df$des, "Yolmer Sanchez", "Carlos Sanchez") -> df$des
+  # Chris Bostick
+  str_replace_all(df$des, "Christopher Bostick", "Chris Bostick") -> df$des
+  # Chris Flexen
+  str_replace_all(df$des, "Christopher Flexen", "Chris Flexen") -> df$des
+  # C.J. Cron
+  str_replace_all(df$des, "C.C.on", "C.J. Cron") -> df$des # weird side effect of the function because of weird entries
+  # Dan Vogelbach
+  str_replace_all(df$des, "Daniel Vogelbach", "Dan Vogelbach") -> df$des
+  # Dwight Smith Jr.
+  str_replace_all(df$des, "Dwight Smith", "Dwight Smith Jr.") -> df$des
+  # Eric Young Jr.
+  ## he has a row that doesn't say what he did
+  str_replace(df$des[which(str_detect(df$des, "Matt Joyce. Justin Upton scores. Eric Young Jr."))], 
+              "Eric Young Jr.", "Eric Young Jr. scores") -> df$des[which(str_detect(df$des, "Matt Joyce. Justin Upton scores. Eric Young Jr."))]
+  # Hyun-soo Kim
+  str_replace_all(df$des, "Hyun Soo Kim", "Hyun-soo Kim") -> df$des
+  # J.T. Riddle
+  str_replace_all(df$des, "J. T. Riddle", "J.T. Riddle") -> df$des
+  str_replace_all(df$des, "JT Riddle", "J.T. Riddle") -> df$des
+  # Jackie Bradley Jr.
+  str_replace_all(df$des, "Jackie Bradley", "Jackie Bradley Jr.") -> df$des
+  # J.D. Martinez
+  str_replace_all(df$des, "Victor J.D. Martinez", "Victor Martinez") -> df$des # for the rows with both Victor Martinez and J.D. Martinez
+  # J.J. Hardy
+  str_replace_all(df$des, "JJ Hardy", "J.J. Hardy") -> df$des # because of course they pick just him to enter in without the dot
+  abbrv_names("J.J. Hardy", df) -> df # now it'll work
+  # Michael A. Taylor
+  str_replace_all(df$des, "Michael A. Taylor", "Michael Taylor") -> df$des
+  # Nick Castellanos
+  str_replace_all(df$des, "Nicholas Castellanos", "Nick Castellanos") -> df$des
+  # Nori Aoki
+  str_replace_all(df$des, "Norichika Aoki", "Nori Aoki") -> df$des
+  # Rafael Lopez
+  str_replace_all(df$des, "Raffy Lopez", "Rafael Lopez") -> df$des
+  # Reymond Fuentes
+  str_replace_all(df$des, "Rey Fuentes", "Reymond Fuentes") -> df$des
+  # T.J. Rivera
+  str_replace_all(df$des, "Rene T.J. Rivera", "Rene Rivera") -> df$des
+  # Vincent Velasquez
+  str_replace_all(df$des, "Vince Velasquez", "Vincent Velasquez") -> df$des
+  # Yulieski Gurriel
+  str_replace_all(df$des, "Yuli Gurriel", "Yulieski Gurriel") -> df$des
+  # Zach Granite
+  str_replace_all(df$des, "Zack Granite", "Zach Granite") -> df$des
+  
+  # Steven Souza Jr.
+  ## he's in here many times without any descriptors
+  str_replace(df$des[which(df$game_pk == 490387 & df$at_bat_number == 31)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 490387 & df$at_bat_number == 31)]
+  str_replace(df$des[which(df$game_pk == 491031 & df$at_bat_number == 54)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 491031 & df$at_bat_number == 54)]
+  str_replace(df$des[which(df$game_pk == 491174 & df$at_bat_number == 56)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 491174 & df$at_bat_number == 56)]
+  str_replace(df$des[which(df$game_pk == 491559 & df$at_bat_number == 21)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 491559 & df$at_bat_number == 21)]
+  str_replace(df$des[which(df$game_pk == 491626 & df$at_bat_number == 38)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 491626 & df$at_bat_number == 38)]
+  str_replace(df$des[which(df$game_pk == 491031 & df$at_bat_number == 54)], "Steven Souza Jr.", "Steven Souza Jr. scores.") -> 
+    df$des[which(df$game_pk == 491031 & df$at_bat_number == 54)]
+}
+
+# some cleaning (taken from the linear weights functions)
+df <- df %>%
+  dplyr::arrange(game_pk, at_bat_number, pitch_number) %>% ## sorts the data by game, then by AB, then by pitch number in the AB
+  dplyr::group_by(game_pk) %>%  ## then it groups by game
+  dplyr::mutate(final_pitch_game = ifelse(pitch_number == max(pitch_number) & at_bat_number == max(at_bat_number), 1, 0)) %>% ## signal the last pitch of the game
+  dplyr::ungroup() %>%
+  dplyr::group_by(game_pk, at_bat_number, inning_topbot) %>%
+  dplyr::mutate(final_pitch_at_bat = ifelse(pitch_number == max(pitch_number), 1, 0)) %>% ## gets the last pitch of the AB
+  dplyr::ungroup()
+
+df <- df %>%
+  dplyr::arrange(game_pk, inning_topbot, at_bat_number, pitch_number) %>% ## same ordering as before but adds top and bottom of the inning
+  dplyr::mutate(runs_scored_on_pitch = stringr::str_count(des, "scores"), ## looks in the description and counts how many times it says "scores"
+                runs_scored_on_pitch = ifelse(events == "home_run", runs_scored_on_pitch + 1, runs_scored_on_pitch), ## adds 1 to that if there is a HR
+                runs_scored_on_pitch = ifelse(is.na(runs_scored_on_pitch), 0, runs_scored_on_pitch),
+                bat_score_after = bat_score + runs_scored_on_pitch) %>% ## gets the score of the batting team after the AB
+  dplyr::arrange(game_pk, at_bat_number, pitch_number) %>% ## rearranges without top/bot of inning
+  dplyr::mutate(final_pitch_inning = ifelse(final_pitch_at_bat == 1 & inning_topbot != lead(inning_topbot), 1, 0),
+                final_pitch_inning = ifelse(is.na(final_pitch_inning), 1, final_pitch_inning)) ## signals the last pitch of an inning
+
+# lets get going
+df <- df %>%
+  dplyr::group_by(game_pk, inning, inning_topbot) %>% ## group by top or bottom of each inning
+  dplyr::mutate(bat_score_start_inning = min(bat_score), ## score at start of inning part
+                bat_score_end_inning = max(bat_score), ## score at end of same inning part
+                cum_runs_in_inning = cumsum(runs_scored_on_pitch), ## cumulative sum of runs scored on each pitch
+                runs_to_end_inning = bat_score_end_inning - bat_score) %>% ## gets runs to left to be scored in the inning #IMPORTNANT FOR RE24#
+  dplyr::ungroup() %>%
+  dplyr::mutate(base_out_state = paste(outs_when_up, " outs, ",
+                                       ifelse(!is.na(.$on_1b), "1b", "_"),
+                                       ifelse(!is.na(.$on_2b), "2b", "_"),
+                                       ifelse(!is.na(.$on_3b), "3b", "_"))) ## gets a character string with individual base-out states
+# regular RE table
+re_table <- run_expectancy_table(df)
+df <- df %>%
+  left_join(re_table, by = "base_out_state") ## gets the RE for each AB
+
+# next, get more things
+df <- df %>%
+  dplyr::filter(final_pitch_at_bat == 1) %>% ## gets only the final pitches of ABs
+  dplyr::arrange(game_pk, inning, inning_topbot) %>%
+  dplyr::group_by(game_pk, inning, inning_topbot) %>% ## arranges and then groups by game, then top or bottom of inning
+  dplyr::mutate(next_base_out_state = dplyr::lead(base_out_state)) %>% ## finds the following BO state
+  dplyr::ungroup() %>%
+  dplyr::left_join(re_table, by = c("next_base_out_state" = "base_out_state")) %>% ## gets the RE directly after a given AB
+  dplyr::rename(next_avg_re = avg_re.y, avg_re = avg_re.x) %>% ## gets everything named intuitively
+  dplyr::mutate(next_avg_re = ifelse(is.na(next_avg_re), 0, next_avg_re)) %>% ## replaces NAs with 0s 
+  dplyr::arrange(game_pk, inning, inning_topbot) ## rearranges everything
+
+# need only the AB that have BR events from the narrowed down df
+df <- df %>%
+  filter((str_detect(des, "1st") | str_detect(des, "2nd") | str_detect(des, "3rd") | str_detect(des, "home") | str_detect(des, "scores")), 
+         !str_detect(des, "homers"),
+         !str_detect(des, "home run"), 
+         !str_detect(des, "grand slam"), 
+         !str_detect(des, "ground-rule double"),
+         !str_detect(des, "walks"), 
+         !str_detect(des, "strikes out"),
+         !str_detect(des, "called out on strikes"), 
+         !str_detect(des, "fielder's choice"),
+         !str_detect(des, "catcher interference"),
+         !str_detect(des, "Pitch challenge"), 
+         !str_detect(des, "error"), 
+         !str_detect(des, "steal"), 
+         !str_detect(des, "double play"), 
+         !str_detect(des, "hit by pitch"), # get's only the plays accounted for in UBR
+         !is.na(next_base_out_state)) # gets rid of the plays that resulted in the last out
+
+# let's loop
+"nope" -> des_name # placeholder for a string in the loop
+
+## This is a list of all the possible buzz words that I can tell it to look for as baserunning events
+c("singles", "doubles", "triples", "grounds out", "grounds into a force out", "flies out", "flies into a force out", "pops out", "pops into a force out", 
+  "lines out", "lines into a force out", "sacrifice fly", "sacrifice bunt", "ground bunts", "bunt grounds out",
+  "to 2nd", "to 3rd", "out at 1st", "out at 2nd", "out at 3rd", "out at home", "scores") -> events 
+
+df <- df %>%
+  mutate(bat_br_event = "not on", 
+         on_1b_br_event = "not on", 
+         on_2b_br_event = "not on", 
+         on_3b_br_event = "not on") # gets the columns in the df as placeholders for later
+
+xx <- length(df$pitch_type)
+for(i in 1:xx) {  # length of df outside loop to prevent any errors
+  df$des[i] -> des_name # gets the des from row i
+  # these next 4 if statements must be in this order because it is the descending order in which they appear in the description
+  # and this way will get the str_split functions to work in the same order
+  ## man on 1st baserunning event
+  if(!is.na(df$on_1b[i])) { # checks if there is anoyone on base
+    str_split_fixed(des_name, df$on_1b[i], 2)[2] -> des_name_1b # splits the des in two and stores everything after the player's name
+    str_split_fixed(des_name, df$on_1b[i], 2)[1] -> des_name # same thing but this takes everything before the player's name and stores it for later
+    # checks for each of the buzz words in the list from earlier
+    for(j in events) { 
+      if(!is.na(str_extract(des_name_1b, j))) { # checks whether the str_exract function got something or if it returns an NA
+        j -> df$on_1b_br_event[i] # stores that buzz word in the column set-up as a place holder and then ends the loop
+        break
+      } else {
+        # if there are no buzz words and they were on base, that means they didn't move and this puts "none". If they weren't on base this puts "not on"
+        ifelse(is.na(df$on_1b[i]), "not on", "none") -> df$on_1b_br_event[i] 
+      }
+    }
+  }
+  
+  ## man on 2nd baserunning event
+  if(!is.na(df$on_2b[i])) {
+    str_split_fixed(des_name, df$on_2b[i], 2)[2] -> des_name_2b
+    str_split_fixed(des_name, df$on_2b[i], 2)[1] -> des_name
+    for(j in events) {
+      if(!is.na(str_extract(des_name_2b, j))) {
+        j -> df$on_2b_br_event[i]
+        break
+      } else {
+        ifelse(is.na(df$on_2b[i]), "not on", "none") -> df$on_2b_br_event[i] 
+      }
+    }
+  }
+  
+  ## man on 3rd baserunning event
+  if(!is.na(df$on_3b[i])) {
+    str_split_fixed(des_name, df$on_3b[i], 2)[2] -> des_name_3b
+    str_split_fixed(des_name, df$on_3b[i], 2)[1] -> des_name
+    for(j in events) {
+      if(!is.na(str_extract(des_name_3b, j))) {
+        j -> df$on_3b_br_event[i]
+        break
+      } else {
+        ifelse(is.na(df$on_3b[i]), "not on", "none") -> df$on_3b_br_event[i] 
+      }
+    }
+  }
+  
+  ## batter event
+  # doesn't need to split anything because it's all that's left
+  for(j in events) { 
+    if(!is.na(str_extract(des_name, j))) { 
+      j -> df$bat_br_event[i] 
+      break 
+    }
+  }
+}
+
+# UBR = (RE24 following BR event) - 
+#       (Avg. RE24 following all possible BR events weighted by frequency of occurrence following specified base-out situation)
+## this is get the RE24 to compare to
+df <- df %>%
+  mutate(bat_br_event_re24 = ifelse(bat_br_event == "scores", (next_avg_re - avg_re) + 1, next_avg_re - avg_re), 
+         on_1b_br_event_re24 = ifelse(on_1b_br_event == "scores", (next_avg_re - avg_re) + 1, next_avg_re - avg_re), 
+         on_2b_br_event_re24 = ifelse(on_2b_br_event == "scores", (next_avg_re - avg_re) + 1, next_avg_re - avg_re), 
+         on_3b_br_event_re24 = ifelse(on_3b_br_event == "scores", (next_avg_re - avg_re) + 1, next_avg_re - avg_re))
+
+## this gets placeholder columns with appropriate NAs so that baserunners aren't punished for not being on-base or if the batter didn't get on
+## by putting an NA in the column so it can get ignored later in sums and means
+df <- df %>%
+  mutate(bat_br_event_re_dif = ifelse(bat_br_event == "singles" | bat_br_event == "doubles" | bat_br_event == "triples" | bat_br_event == "scores", 
+                                    0, NA), # this way it only looks at whether the hitter could have had a b.r. event
+         on_1b_br_event_re_dif = ifelse(on_1b_br_event == "not on", NA, 0), 
+         on_2b_br_event_re_dif = ifelse(on_2b_br_event == "not on", NA, 0), 
+         on_3b_br_event_re_dif = ifelse(on_3b_br_event == "not on", NA, 0))
+
+## this creates a baserunning environment for the baserunner so they aren't punished for not advancing when it wasn't possible
+df <- df %>%
+  mutate(bat_br_envr = paste(base_out_state, ", then ", 
+                          ifelse(!is.na(on_1b), paste(", man on first", on_1b_br_event), ""), 
+                          ifelse(!is.na(on_2b), paste(", man on second", on_2b_br_event), ""), 
+                          ifelse(!is.na(on_3b), paste(", man on third", on_3b_br_event), "")), 
+         on_1b_br_envr = paste(base_out_state, ", then ", 
+                             "batter ", bat_br_event, 
+                             ifelse(!is.na(on_2b), paste(", man on second", on_2b_br_event), ""), 
+                             ifelse(!is.na(on_3b), paste(", man on third", on_3b_br_event), "")), 
+         on_2b_br_envr = paste(base_out_state, ", then ", 
+                               "batter ", bat_br_event, 
+                               ifelse(!is.na(on_1b), paste(", man on first", on_1b_br_event), ""), 
+                               ifelse(!is.na(on_3b), paste(", man on third", on_3b_br_event), "")), 
+         on_3b_br_envr = paste(base_out_state, ", then ", 
+                               "batter ", bat_br_event, 
+                               ifelse(!is.na(on_1b), paste(", man on first", on_1b_br_event), ""), 
+                               ifelse(!is.na(on_2b), paste(", man on second", on_2b_br_event), ""))) 
+
+## to get weighted average for on_1b
+br.df1 <- df %>%
+  group_by(on_1b_br_event, on_1b_br_envr) %>% # groups by their action and the environment
+  summarise(on_1b_br_event_freq = length(base_out_state)) # gets the frequency of the combinations
+left_join(df, br.df1, by = c("on_1b_br_event", "on_1b_br_envr")) -> df # get the frequencies in the df
+### this makes the frequencies NA if they weren't on base to prevent issues in averaging and such later
+df$on_1b_br_event_freq <- ifelse(is.na(df$on_1b), NA, df$on_1b_br_event_freq) 
+br.df1 <- df %>%
+  group_by(on_1b_br_envr) %>% # this all just sorts by the environment and then finds the weighted average using the frequencies
+  summarise(avg_on_1b_br_event_re24 = weighted.mean(on_1b_br_event_re24, on_1b_br_event_freq, na.rm = T)) 
+left_join(df, br.df1, by = "on_1b_br_envr") -> df # gets the average into the df lined up with each environment
+
+## to get weighted average for on_2b
+br.df2 <- df %>%
+  group_by(on_2b_br_event, on_2b_br_envr) %>%
+  summarise(on_2b_br_event_freq = length(base_out_state))
+left_join(df, br.df2, by = c("on_2b_br_event", "on_2b_br_envr")) -> df 
+df$on_2b_br_event_freq <- ifelse(is.na(df$on_2b), NA, df$on_2b_br_event_freq)
+br.df2 <- df %>%
+  group_by(on_2b_br_envr) %>%
+  summarise(avg_on_2b_br_event_re24 = weighted.mean(on_2b_br_event_re24, on_2b_br_event_freq, na.rm = T)) 
+left_join(df, br.df2, by = "on_2b_br_envr") -> df
+
+## to get weighted average for on_3b
+br.df3 <- df %>%
+  group_by(on_3b_br_event, on_3b_br_envr) %>%
+  summarise(on_3b_br_event_freq = length(base_out_state))
+left_join(df, br.df3, by = c("on_3b_br_event", "on_3b_br_envr")) -> df 
+df$on_3b_br_event_freq <- ifelse(is.na(df$on_3b), NA, df$on_3b_br_event_freq)
+br.df3 <- df %>%
+  group_by(on_3b_br_envr) %>%
+  summarise(avg_on_3b_br_event_re24 = weighted.mean(on_3b_br_event_re24, on_3b_br_event_freq, na.rm = T)) 
+left_join(df, br.df3, by = "on_3b_br_envr") -> df
+
+## to get weighted average for batter br event
+br.df4 <- df %>%
+  group_by(bat_br_event, bat_br_envr) %>%
+  summarise(bat_br_event_freq = length(base_out_state))
+left_join(df, br.df4, by = c("bat_br_event", "bat_br_envr")) -> df 
+# since their always "on_base" it checks for the same characteristics as when the placeholder column got made
+df$bat_br_event_freq <- ifelse(is.na(df$bat_br_event_re24), NA, df$bat_br_event_freq) 
+br.df4 <- df %>%
+  group_by(bat_br_envr) %>%
+  summarise(avg_bat_br_event_re24 = weighted.mean(bat_br_event_re24, bat_br_event_freq, na.rm = T)) 
+left_join(df, br.df4, by = "bat_br_envr") -> df
+
+# this is UBR
+df <- df %>%
+  mutate(bat_ubr = bat_br_event_re24 - avg_bat_br_event_re24, 
+         on_1b_ubr = on_1b_br_event_re24 - avg_on_1b_br_event_re24, 
+         on_2b_ubr = on_2b_br_event_re24 - avg_on_2b_br_event_re24, 
+         on_3b_ubr = on_3b_br_event_re24 - avg_on_3b_br_event_re24)
+
+# now lets get the player sums for each base and combine them
+## need the team of who is batting to make team splits
+as.character(df$home_team) -> df$home_team; as.character(df$away_team) -> df$away_team; as.character(df$inning_topbot) -> df$inning_topbot
+df <- df %>%
+  mutate(bat_team = ifelse(inning_topbot == "Top", away_team, home_team))
+## get seperate dataframes with just the player names and their play ubr
+df1 <- df[ , c("on_1b", "bat_team", "on_1b_ubr")]
+df2 <- df[ , c("on_2b", "bat_team", "on_2b_ubr")]
+df3 <- df[ , c("on_3b", "bat_team", "on_3b_ubr")]
+df4 <- df[ , c("batter", "bat_team", "bat_ubr")]
+## first batter ubr
+df.ubr <- df4 %>%
+  group_by(batter, bat_team) %>% # finds the sum for each batter
+  summarise(UBR_bat = sum(bat_ubr, na.rm = T)) %>%
+  rename(Name = batter, Team = bat_team)
+## next, on first and so on
+df_ubr.i <- df1 %>%
+  group_by(on_1b, bat_team) %>%
+  summarise("UBR_1b" = sum(on_1b_ubr, na.rm = T))
+left_join(df.ubr, df_ubr.i, by = c("Name" = "on_1b", "Team" = "bat_team")) -> df.ubr
+
+df_ubr.i <- df2 %>%
+  group_by(on_2b, bat_team) %>%
+  summarise("UBR_2b" = sum(on_2b_ubr, na.rm = T))
+left_join(df.ubr, df_ubr.i, by = c("Name" = "on_2b", "Team" = "bat_team")) -> df.ubr
+
+df_ubr.i <- df3 %>%
+  group_by(on_3b, bat_team) %>%
+  summarise("UBR_3b" = sum(on_3b_ubr, na.rm = T))
+left_join(df.ubr, df_ubr.i, by = c("Name" = "on_3b", "Team" = "bat_team")) -> df.ubr
+
+# this gets a column with the total UBR
+df.ubr$UBR <- 0 # placeholder
+for(i in 1:length(df.ubr$Name)) {
+  df.ubr$UBR[i] <- sum(df.ubr$UBR_bat[i], df.ubr$UBR_1b[i], df.ubr$UBR_2b[i], df.ubr$UBR_3b[i], na.rm = T)
+}
+df.ubr[ , c("Name", "Team", "UBR")] -> df.ubr # gets just the column of names and the total UBR
+
+
+```
