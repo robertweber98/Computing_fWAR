@@ -5,9 +5,12 @@ date: "July 25, 2018"
 output: html_document
 ---
 
-```{r setup, echo = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+This is the full code for my best attempt at fangraphs' Ultimate Baserunning (UBR). The data used as "sc.data" is the full statcast data from 2017 and "id" is the mlb id data set.
+"df.ubr" is the final product.
 
 ```{r Calculations}
 sc.data -> df
@@ -402,6 +405,4 @@ for(i in 1:length(df.ubr$Name)) {
   df.ubr$UBR[i] <- sum(df.ubr$UBR_bat[i], df.ubr$UBR_1b[i], df.ubr$UBR_2b[i], df.ubr$UBR_3b[i], na.rm = T)
 }
 df.ubr[ , c("Name", "Team", "UBR")] -> df.ubr # gets just the column of names and the total UBR
-
-
 ```
