@@ -169,7 +169,7 @@ ifelse(full.df$League == "AL",
 
 # Baserunning Runs
 - BR = UBR + wSB + wGDP
-```{r}
+```{r Baserunning Runs}
 # wSB was the only one that I was able to calculate on my own (see README)
 # wSB = SB * runSB + CS * runCS - lgwSB * (1B + uBB + HBP)
 ## runSB is always 0.2
@@ -184,5 +184,46 @@ full.df$wSB_x <- (full.df$SB * runSB) + (full.df$CS * runCS) - (lgwSB * (full.df
 
 # so BR runs is just adding up the pieces
 full.df$BR <- full.df$wSB_x + full.df$UBR + full.df$wGDP
+```
+
+# Fielding Runs
+For fielding runs, fangraphs.com uses their UZR number, that which I am not able to calculate (see README).
+
+# Positional Adjustment
+- Pos = ((Inn/9) / 162) * position specific run value 
+```{r Positional Adjustment}
+# the first step is to get a df of the positions and their respective adjustments taken from fangraphs
+pos_adj <- data.frame("Position" = c("C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"), 
+                      "Positional_Adjustment" = c(12.5, -12.5, 2.5, 2.5, 7.5, -7.5, 2.5, -7.5, -17.5))
+left_join(full.df, pos_adj, by = "Position") -> full.df # this gets the uncalculated positional adjustment next the the player at that position
+# this next step just performs the fagnraphs calculation
+full.df <- full.df %>%
+  mutate(Positional_Adjustment = (((Inn / 9)) / 162) * Positional_Adjustment)
+```
+
+# League Adjustment
+- ((-1)*(lgBatting Runs + lgBase Running Runs + lgFielding Runs + lgPositional Adjustment) / lgPA)*PA
+```{r League Adjustment}
+# this finds the base adjustment for both leagues
+lg_adj <- full.df %>%
+  group_by(League) %>%
+  summarise(League_Adjustment = ((-1)*(sum(Bat, na.rm = T) + sum(BR, na.rm = T) + sum(Fld, na.rm = T) + sum(Positional_Adjustment, na.rm = T)) 
+                                 / sum(PA, na.rm = T)))
+# gets the base league adjustments into the df next the player in the respective league
+left_join(full.df, lg_adj, by = "League") -> full.df
+# then that number just needs to multiplied by the player's plate appearances
+full.df <- full.df %>%
+  mutate(League_Adjustment = League_Adjustment * PA)
+```
+
+# Runs per Win
+fangraphs.com uses 10.048 as RPW for 2017
+```{r RPW}
+RPW = 10.048
+```
+
+# Replacement Runs
+```{r Replacement Runs}
+
 ```
 
