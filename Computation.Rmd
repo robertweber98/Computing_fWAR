@@ -22,8 +22,9 @@ The in-file data-set names are as follows: "wp.df" is the full (with pitchers) f
 Some cleaing is necessary before the process begins. First, we need the positions of all the players in the data set because fangraphs.com doesn't let positions be in a dataset with offensive stats for some reason. That is what the "defense" data is used for. Then, since this is WAR for position players, fangraphs.com eliminates any pitchers from the data set in their calculations, but I keep the other data set just in case. Lastly, some of the names don't match up with the names in the data set being used to match names to their respective player i.d.s in the statcast data set. 
 ```{r Cleaning}
 # first, this narrows down "defense" to just the player name, team, position, 
-## and innings played at said position (it is needed for the positional adjustment later)
-defense[ , c("Name", "Team", "Position", "Inn")] -> defense 
+## innings played at said position (it is needed for the positional adjustment later),
+## and rSB for catchers
+defense[ , c("Name", "Team", "Position", "Inn", "rSB")] -> defense 
 # this next step switches the team abbreviations in "defense" to the team names like in "wp.df"
 defense <- defense %>%
   mutate(Team = ifelse(Team == "ARI", "Diamondbacks", 
@@ -65,7 +66,8 @@ as.character(wp.df$Name) -> wp.df$Name; as.character(defense$Name) -> defense$Na
 defense <- defense %>%
   group_by(Name, Team) %>%
   summarise(Position = Position[Inn == max(Inn)], 
-            Inn = sum(Inn))
+            Inn = sum(Inn), 
+            rSB = sum(rSB, na.rm = T))
 left_join(wp.df, defense, by = c("Name", "Team")) -> wp.df # just gets the dfs together
 # this step gets rid of the pitchers from the data set and creates a new df calle "full.df" This is what will be used from now on
 wp.df[which(wp.df$Position != "P"), ] -> full.df
@@ -188,6 +190,7 @@ full.df$BR <- full.df$wSB_x + full.df$UBR + full.df$wGDP
 
 # Fielding Runs
 For fielding runs, fangraphs.com uses their UZR number, that which I am not able to calculate (see README).
+But, for catchers it uses rSB
 
 # Positional Adjustment
 - Pos = ((Inn/9) / 162) * position specific run value 
@@ -223,7 +226,14 @@ RPW = 10.048
 ```
 
 # Replacement Runs
+- Rep = 570 * (RPW/lgPA) * PA
 ```{r Replacement Runs}
-
+# gets the total number of plate appearances by all non-pitchers
+sum(wp.df$PA) -> lgPA
+# gets replacement runs
+full.df <- full.df %>%
+  mutate(Rep_x = 570 * (RPW / lgPA) * PA)
 ```
 
+# WAR
+- WAR = (Bat + BR + Fielding Runs + Positional Adjustment + League Adjustment +Replacement Runs) / (Runs Per Win)
